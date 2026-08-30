@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>دمج ملفات PDF - أداة متطورة</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 700px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.2em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 0.95em;
+        }
+
+        .upload-area {
+            border: 2px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9ff;
+        }
+
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: #f0f2ff;
+        }
+
+        .upload-area.dragover {
+            border-color: #764ba2;
+            background: #e8ebff;
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 4em;
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .upload-text {
+            color: #555;
+            font-size: 1.1em;
+        }
+
+        .file-list {
+            margin: 20px 0;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin: 5px 0;
+            background: #f0f2ff;
+            border-radius: 8px;
+            font-size: 0.9em;
+        }
+
+        .file-item .remove {
+            color: #e74c3c;
+            cursor: pointer;
+            font-weight: bold;
+            padding: 0 10px;
+        }
+
+        .file-item .size {
+            color: #666;
+            font-size: 0.85em;
+        }
+
+        .btn-merge {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 20px;
+        }
+
+        .btn-merge:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-merge:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .status-text {
+            text-align: center;
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+
+        .error {
+            color: #e74c3c;
+            background: #fde8e8;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
+            display: none;
+        }
+
+        .error.active {
+            display: block;
+        }
+
+        .success {
+            color: #27ae60;
+            background: #e8f5e9;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
+            display: none;
+        }
+
+        .success.active {
+            display: block;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .info-card {
+            background: #f8f9ff;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .info-card .number {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .info-card .label {
+            color: #666;
+            font-size: 0.85em;
+            margin-top: 5px;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            color: #999;
+            font-size: 0.85em;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+            h1 {
+                font-size: 1.5em;
+            }
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+            .upload-area {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📄 دمج ملفات PDF</h1>
+        <p class="subtitle">ارفع ملفات PDF لدمجها في ملف واحد</p>
+
+        <div class="info-grid">
+            <div class="info-card">
+                <div class="number">10</div>
+                <div class="label">الحد الأقصى للملفات</div>
+            </div>
+            <div class="info-card">
+                <div class="number">10</div>
+                <div class="label">الحد الأقصى للحجم (ميجا)</div>
+            </div>
+            <div class="info-card">
+                <div class="number">⚡</div>
+                <div class="label">معالجة سريعة</div>
+            </div>
+        </div>
+
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📤</div>
+            <div class="upload-text">
+                اسحب الملفات هنا أو اضغط للاختيار
+                <br>
+                <small style="color: #999;">يدعم ملفات PDF فقط</small>
+            </div>
+            <input type="file" id="fileInput" accept=".pdf" multiple>
+        </div>
+
+        <div class="file-list" id="fileList"></div>
+
+        <div class="error" id="errorMessage"></div>
+        <div class="success" id="successMessage"></div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="status-text" id="statusText">جاري دمج الملفات...</div>
+        </div>
+
+        <button class="btn-merge" id="mergeBtn" disabled>
+            🔗 دمج الملفات
+        </button>
+
+        <div class="footer">
+            تم التطوير باستخدام ❤️ | النسخة 2.0
+        </div>
+    </div>
+
+    <script>
+        // ===== متغيرات =====
+        let selectedFiles = [];
+        let isProcessing = false;
+        const MAX_FILES = 10;
+        const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 ميجا
+
+        // ===== عناصر DOM =====
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const mergeBtn = document.getElementById('mergeBtn');
+        const loading = document.getElementById('loading');
+        const progressFill = document.getElementById('progressFill');
+        const statusText = document.getElementById('statusText');
+        const errorMessage = document.getElementById('errorMessage');
+        const successMessage = document.getElementById('successMessage');
+
+        // ===== إدارة الملفات =====
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+        }
+
+        function updateFileList() {
+            fileList.innerHTML = '';
+            selectedFiles.forEach((file, index) => {
+                const item = document.createElement('div');
+                item.className = 'file-item';
+                item.innerHTML = `
+                    <span>📄 ${file.name}</span>
+                    <span>
+                        <span class="size">${formatSize(file.size)}</span>
+                        <span class="remove" onclick="removeFile(${index})">✕</span>
+                    </span>
+                `;
+                fileList.appendChild(item);
+            });
+
+            mergeBtn.disabled = selectedFiles.length === 0 || isProcessing;
+            mergeBtn.textContent = selectedFiles.length === 0 ? '🔗 دمج الملفات' : `🔗 دمج ${selectedFiles.length} ملفات`;
+        }
+
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+            updateFileList();
+            hideMessages();
+        }
+
+        function addFiles(files) {
+            let added = 0;
+            for (const file of files) {
+                // التحقق من النوع
+                if (!file.type.includes('pdf') && !file.name.toLowerCase().endsWith('.pdf')) {
+                    showError(`❌ الملف "${file.name}" ليس PDF`);
+                    continue;
+                }
+
+                // التحقق من الحجم
+                if (file.size > MAX_FILE_SIZE) {
+                    showError(`❌ الملف "${file.name}" كبير جداً (الحد الأقصى 10 ميجا)`);
+                    continue;
+                }
+
+                // التحقق من العدد
+                if (selectedFiles.length >= MAX_FILES) {
+                    showError(`❌ تم الوصول للحد الأقصى (${MAX_FILES} ملفات)`);
+                    break;
+                }
+
+                selectedFiles.push(file);
+                added++;
+            }
+
+            if (added > 0) {
+                hideMessages();
+                updateFileList();
+                showSuccess(`✅ تم إضافة ${added} ملفات بنجاح`);
+            }
+        }
+
+        // ===== التعامل مع السحب والإفلات =====
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                addFiles(files);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                addFiles(e.target.files);
+                fileInput.value = '';
+            }
+        });
+
+        // ===== دمج الملفات =====
+        mergeBtn.addEventListener('click', async () => {
+            if (selectedFiles.length === 0 || isProcessing) return;
+
+            isProcessing = true;
+            mergeBtn.disabled = true;
+            loading.classList.add('active');
+            progressFill.style.width = '0%';
+            statusText.textContent = 'جاري تحميل الملفات...';
+            hideMessages();
+
+            const formData = new FormData();
+            selectedFiles.forEach((file, index) => {
+                formData.append('pdfs', file, file.name);
+            });
+
+            try {
+                // محاكاة التقدم
+                let progress = 0;
+                const progressInterval = setInterval(() => {
+                    progress += 5;
+                    if (progress <= 90) {
+                        progressFill.style.width = progress + '%';
+                        statusText.textContent = `جاري الدمج... ${progress}%`;
+                    }
+                }, 300);
+
+                const response = await fetch('/merge', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                clearInterval(progressInterval);
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'حدث خطأ أثناء الدمج');
+                }
+
+                // قراءة الملف
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `merged_${Date.now()}.pdf`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(url);
+
+                progressFill.style.width = '100%';
+                statusText.textContent = '✅ اكتمل الدمج بنجاح!';
+                showSuccess('✅ تم دمج الملفات بنجاح! جاري تحميل الملف...');
+
+                // تنظيف الملفات
+                selectedFiles = [];
+                updateFileList();
+
+                setTimeout(() => {
+                    loading.classList.remove('active');
+                    progressFill.style.width = '0%';
+                }, 2000);
+
+            } catch (error) {
+                console.error('خطأ:', error);
+                showError(`❌ ${error.message}`);
+                loading.classList.remove('active');
+                progressFill.style.width = '0%';
+            } finally {
+                isProcessing = false;
+                mergeBtn.disabled = selectedFiles.length === 0;
+            }
+        });
+
+        // ===== عرض الرسائل =====
+        function showError(msg) {
+            errorMessage.textContent = msg;
+            errorMessage.classList.add('active');
+            successMessage.classList.remove('active');
+            setTimeout(() => {
+                errorMessage.classList.remove('active');
+            }, 5000);
+        }
+
+        function showSuccess(msg) {
+            successMessage.textContent = msg;
+            successMessage.classList.add('active');
+            errorMessage.classList.remove('active');
+            setTimeout(() => {
+                successMessage.classList.remove('active');
+            }, 5000);
+        }
+
+        function hideMessages() {
+            errorMessage.classList.remove('active');
+            successMessage.classList.remove('active');
+        }
+
+        // ===== التحقق من صحة الخادم =====
+        async function checkHealth() {
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                console.log('✅ الخادم يعمل:', data);
+            } catch (error) {
+                console.error('❌ خطأ في الاتصال بالخادم:', error);
+            }
+        }
+
+        // تشغيل عند التحميل
+        document.addEventListener('DOMContentLoaded', checkHealth);
+    </script>
+</body>
+</html>
