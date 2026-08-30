@@ -12,11 +12,14 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200 ميجا بايت
-const MAX_FILES = 5; // قلل العدد للملفات الكبيرة
-const MAX_MEMORY = process.env.MEMORY_LIMIT || 1024; // 1 جيجا
+const MAX_FILES = 5;
+const MAX_MEMORY = process.env.MEMORY_LIMIT || 1024;
 
 console.log(`📦 الحد الأقصى للملف: ${MAX_FILE_SIZE / 1024 / 1024} MB`);
 console.log(`📦 الحد الأقصى للعدد: ${MAX_FILES} ملفات`);
+
+// ===== تفعيل trust proxy لـ Railway =====
+app.set('trust proxy', 1); // ✅ إضافة هذا السطر لحل مشكلة rate-limit
 
 // ===== تحسينات الأمان والأداء =====
 app.use(helmet({
@@ -38,19 +41,15 @@ app.use(compression({
 // ===== تحديد حدود الطلبات =====
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20, // قلل العدد للملفات الكبيرة
-  message: 'تجاوزت عدد الطلبات المسموح بها، حاول لاحقاً'
+  max: 20,
+  message: 'تجاوزت عدد الطلبات المسموح بها، حاول لاحقاً',
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 app.use('/merge', limiter);
 
 // ===== تكوين Multer للملفات الكبيرة =====
-const storage = multer.memoryStorage({
-  limits: {
-    fileSize: MAX_FILE_SIZE,
-    files: MAX_FILES,
-    fieldSize: 200 * 1024 * 1024 // 200 ميجا للحقول
-  }
-});
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage: storage,
@@ -73,7 +72,7 @@ const upload = multer({
 // ===== عرض واجهة المستخدم =====
 app.use(express.static('public'));
 
-// ===== API الرئيسي للدمج - محسن للملفات الكبيرة =====
+// ===== API الرئيسي للدمج - مُصحح =====
 app.post('/merge', upload.array('pdfs', MAX_FILES), async (req, res) => {
   const startTime = Date.now();
   let memoryUsed = process.memoryUsage();
@@ -107,7 +106,7 @@ app.post('/merge', upload.array('pdfs', MAX_FILES), async (req, res) => {
     const mergedPdf = await PDFDocument.create();
     let pageCount = 0;
 
-    // ===== معالجة الملفات واحداً تلو الآخر للملفات الكبيرة =====
+    // ===== معالجة الملفات واحداً تلو الآخر =====
     for (let i = 0; i < req.files.length; i++) {
       const file = req.files[i];
       const fileSizeMB = file.size / 1024 / 1024;
@@ -115,26 +114,24 @@ app.post('/merge', upload.array('pdfs', MAX_FILES), async (req, res) => {
       console.log(`📄 معالجة الملف ${i + 1}/${req.files.length}: ${file.originalname} (${fileSizeMB.toFixed(2)} MB)`);
       
       try {
-        // قراءة الملف كـ ArrayBuffer
         const pdfBytes = file.buffer;
         
-        // تحميل المستند مع خيارات محسنة للملفات الكبيرة
+        // ✅ التصحيح: استخدم رقم بدلاً من نص
         const pdf = await PDFDocument.load(pdfBytes, {
           ignoreEncryption: true,
           updateMetadata: false,
-          parseSpeed: 'Fast'
+          parseSpeed: 1, // ✅ 1 = سريع، 0 = بطيء (افتراضي)
         });
 
         const pageIndices = pdf.getPageIndices();
         pageCount += pageIndices.length;
         console.log(`   📑 ${pageIndices.length} صفحات`);
 
-        // نسخ الصفحات مع تحسين الذاكرة
+        // نسخ الصفحات
         for (const pageIndex of pageIndices) {
           const [copiedPage] = await mergedPdf.copyPages(pdf, [pageIndex]);
           mergedPdf.addPage(copiedPage);
           
-          // تنظيف الذاكرة كل 3 صفحات للملفات الكبيرة
           if (pageCount % 3 === 0 && global.gc) {
             global.gc();
           }
@@ -167,7 +164,7 @@ app.post('/merge', upload.array('pdfs', MAX_FILES), async (req, res) => {
     const mergedBytes = await mergedPdf.save({
       useObjectStreams: false,
       addDefaultPage: false,
-      objectsPerTick: 30, // أقل للملفات الكبيرة
+      objectsPerTick: 30,
       updateFieldAppearances: false
     });
 
@@ -186,7 +183,6 @@ app.post('/merge', upload.array('pdfs', MAX_FILES), async (req, res) => {
     console.log(`💾 الذاكرة النهائية: ${Math.round(finalMemory.rss / 1024 / 1024)} MB`);
     console.log(`📦 حجم الملف الناتج: ${Math.round(mergedBytes.length / 1024 / 1024)} MB`);
 
-    // إرسال الملف
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=merged_${Date.now()}.pdf`);
     res.setHeader('X-Processing-Time', processingTime);
@@ -291,13 +287,13 @@ app.listen(PORT, () => {
   const mem = process.memoryUsage();
   console.log(`
 ╔══════════════════════════════════════════════╗
-║  🚀 PDF Merger Server v3.0 - 200 MB       ║
+║  🚀 PDF Merger Server v3.1 - 200 MB       ║
 ╠══════════════════════════════════════════════╣
 ║  📡 المنفذ: ${PORT.toString().padEnd(26)}║
 ║  💾 الذاكرة: ${Math.round(mem.rss / 1024 / 1024)} MB${' '.repeat(19)}║
 ║  📦 الحد الأقصى للملفات: ${MAX_FILES}${' '.repeat(19)}║
 ║  📄 الحد الأقصى للحجم: 200 MB${' '.repeat(16)}║
-║  ⚠️  يوصى بـ 1 جيجا ذاكرة على Railway${' '.repeat(6)}║
+║  ✅ الإصدار: v3.1 - تم إصلاح الأخطاء${' '.repeat(5)}║
 ╚══════════════════════════════════════════════╝
   `);
 });
